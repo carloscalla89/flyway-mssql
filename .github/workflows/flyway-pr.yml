@@ -44,8 +44,6 @@ jobs:
       - name: Debug secret
         run: |
           echo "Valor del secret MSSQL_SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD }}"
-          echo "Otras variables de entorno:"
-          env | grep MSSQL  
 
       - name: Wait for SQL to be healthy
         run: |
