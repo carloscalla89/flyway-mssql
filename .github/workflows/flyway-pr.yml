@@ -11,9 +11,6 @@ concurrency:
   group: flyway-pr-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  # Contraseña efímera SOLO para validación en PR (BD desechable)
-  SA_PASSWORD_PR: ${{ secrets.MSSQL_SA_PASSWORD }}   # cumple complejidad: may/min/num/sim, >=8  
 
 jobs:
   validate:
@@ -23,21 +20,32 @@ jobs:
     services:
       mssql:
         image: mcr.microsoft.com/mssql/server:2022-latest
-        env:
-          ACCEPT_EULA: "Y"
-          SA_PASSWORD: ${{ env.SA_PASSWORD_PR }}
-          MSSQL_PID: "Express"
+        container_name: mssql-local
         ports:
-          - 14333:1433
-        options: >-
-          --health-cmd=" /opt/mssql-tools18/bin/sqlcmd -C -S localhost,1433 -U sa -P $${SA_PASSWORD} -Q 'select 1' || exit 1 "
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=30
+          - "127.0.0.1:11433:1433"
+        environment:
+          ACCEPT_EULA: "Y"
+          MSSQL_PID: "Developer"
+          MSSQL_SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD }}
+        volumes:
+          - mssql_data:/var/opt/mssql
+        restart: unless-stopped
+        healthcheck:
+          test: ['CMD-SHELL','grep -q "SQL Server is now ready for client connections" /var/opt/mssql/log/errorlog']
+          interval: 10s
+          timeout: 5s
+          retries: 30
+          start_period: 20s
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Debug secret
+        run: |
+          echo "Valor del secret MSSQL_SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD }}"
+          echo "Otras variables de entorno:"
+          env | grep MSSQL  
 
       - name: Wait for SQL to be healthy
         run: |
