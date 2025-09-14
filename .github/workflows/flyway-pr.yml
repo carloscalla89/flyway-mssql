@@ -20,22 +20,17 @@ jobs:
     services:
       mssql:
         image: mcr.microsoft.com/mssql/server:2022-latest
-        container_name: mssql-local
-        ports:
-          - "127.0.0.1:11433:1433"
-        environment:
+        env:
           ACCEPT_EULA: "Y"
+          SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD }}
           MSSQL_PID: "Express"
-          MSSQL_SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD }}
-        volumes:
-          - mssql_data:/var/opt/mssql
-        restart: unless-stopped
-        healthcheck:
-          test: ['CMD-SHELL','grep -q "SQL Server is now ready for client connections" /var/opt/mssql/log/errorlog']
-          interval: 10s
-          timeout: 5s
-          retries: 30
-          start_period: 20s
+        ports:
+          - 14333:1433
+        options: >-
+          --health-cmd=" /opt/mssql-tools18/bin/sqlcmd -C -S localhost,1433 -U sa -P $${SA_PASSWORD} -Q 'select 1' || exit 1 "
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=30
 
     steps:
       - name: Checkout
