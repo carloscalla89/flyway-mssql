@@ -2,7 +2,7 @@ name: Flyway PR Check
 
 on:
   pull_request:
-    branches: [ "main", "develop", "release/**" ]
+    branches: [ "main", "develop", "release/**", "feature/**" ]
 
 permissions:
   contents: read

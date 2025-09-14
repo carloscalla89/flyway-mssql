@@ -41,13 +41,13 @@ services:
         condition: service_completed_successfully
     environment:
       # Puedes configurar todo vía flyway.conf, o aquí como variables de entorno:
-      - FLYWAY_URL=jdbc:sqlserver://mssql:1433;databaseName=${MSSQL_DB_NAME};encrypt=true;trustServerCertificate=true
-      - FLYWAY_USER=${FLYWAY_USER}
-      - FLYWAY_PASSWORD=${FLYWAY_PASSWORD}
-      - FLYWAY_SCHEMAS=dbo
-      - FLYWAY_LOCATIONS=filesystem:/flyway/sql
-      - FLYWAY_CONNECT_RETRIES=60
-      - FLYWAY_BASELINE_ON_MIGRATE=true
+      #- FLYWAY_URL=jdbc:sqlserver://mssql:1433;databaseName=${MSSQL_DB_NAME};encrypt=true;trustServerCertificate=true
+      #- FLYWAY_USER=${FLYWAY_USER}
+      #- FLYWAY_PASSWORD=${FLYWAY_PASSWORD}
+      #- FLYWAY_SCHEMAS=dbo
+      #- FLYWAY_LOCATIONS=filesystem:/flyway/sql
+      #- FLYWAY_CONNECT_RETRIES=60
+      #- FLYWAY_BASELINE_ON_MIGRATE=true
     volumes:
       - ./flyway/sql:/flyway/sql:ro
       - ./flyway/conf:/flyway/conf:ro
