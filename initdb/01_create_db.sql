@@ -1,0 +1,9 @@
+IF DB_ID('DemoDB') IS NULL
+BEGIN
+  CREATE DATABASE [DemoDB];
+  PRINT 'BD creada: DemoDB';
+END
+ELSE
+BEGIN
+  PRINT 'BD ya existe: DemoDB';
+END

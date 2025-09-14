@@ -1,0 +1,60 @@
+version: "3.9"
+
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql-local
+    ports:
+      - "127.0.0.1:11433:1433"
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_PID: "Developer"
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+    volumes:
+      - mssql_data:/var/opt/mssql
+    restart: unless-stopped
+    healthcheck:
+      test: ['CMD-SHELL','grep -q "SQL Server is now ready for client connections" /var/opt/mssql/log/errorlog']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  mssql-init:
+    image: mcr.microsoft.com/mssql-tools:latest
+    depends_on:
+      mssql:
+        condition: service_started
+    environment:
+      MSSQL_SA_PASSWORD: "${MSSQL_SA_PASSWORD}"
+      MSSQL_DB_NAME: "${MSSQL_DB_NAME:-DemoDB}"
+    volumes:
+      - ./initdb:/initdb:ro
+    entrypoint: ["/bin/sh","/initdb/run.sh"]
+    restart: "no"
+
+  flyway:
+    image: flyway/flyway:10-alpine
+    container_name: flyway
+    depends_on:
+      mssql-init:
+        condition: service_completed_successfully
+    environment:
+      # Puedes configurar todo vía flyway.conf, o aquí como variables de entorno:
+      - FLYWAY_URL=jdbc:sqlserver://mssql:1433;databaseName=${MSSQL_DB_NAME};encrypt=true;trustServerCertificate=true
+      - FLYWAY_USER=${FLYWAY_USER}
+      - FLYWAY_PASSWORD=${FLYWAY_PASSWORD}
+      - FLYWAY_SCHEMAS=dbo
+      - FLYWAY_LOCATIONS=filesystem:/flyway/sql
+      - FLYWAY_CONNECT_RETRIES=60
+      - FLYWAY_BASELINE_ON_MIGRATE=true
+    volumes:
+      - ./flyway/sql:/flyway/sql:ro
+      - ./flyway/conf:/flyway/conf:ro
+    command: -X migrate
+    # Para ejecutar solo bajo demanda, puedes comentar "command" y usar:
+    # docker compose run --rm flyway migrate
+    restart: "no"  
+
+volumes:
+  mssql_data:
