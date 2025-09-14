@@ -25,7 +25,7 @@ jobs:
           - "127.0.0.1:11433:1433"
         environment:
           ACCEPT_EULA: "Y"
-          MSSQL_PID: "Developer"
+          MSSQL_PID: "Express"
           MSSQL_SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD }}
         volumes:
           - mssql_data:/var/opt/mssql
