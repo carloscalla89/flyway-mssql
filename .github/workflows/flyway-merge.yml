@@ -1,0 +1,72 @@
+name: Flyway Migrate on Merge (Local DB)
+
+on:
+  push:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: flyway-merge
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Migrate Flyway on local docker-compose
+    # Se ejecuta en TU runner local
+    runs-on: [ self-hosted, local, mssql ]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Ensure docker compose is up (MSSQL)
+        run: |
+          docker compose up -d
+          # opcional: si tu servicio se llama distinto, ajústalo:
+          # docker compose up -d mssql
+
+      - name: Wait for MSSQL in compose
+        run: |
+          for i in {1..60}; do
+            docker compose exec -T mssql /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P "${{ secrets.MSSQL_SA_PASSWORD_LOCAL }}" -Q "SELECT 1" && break
+            echo "Waiting local MSSQL... ($i/60)"; sleep 2
+          done
+
+      - name: Create DB if not exists
+        run: |
+          docker compose exec -T mssql /opt/mssql-tools/bin/sqlcmd \
+            -S localhost -U sa -P "${{ secrets.MSSQL_SA_PASSWORD_LOCAL }}" \
+            -Q "IF DB_ID('DemoDB') IS NULL CREATE DATABASE DemoDB;"
+
+      - name: Run Flyway migrate against local DB
+        env:
+          FLYWAY_URL: "jdbc:sqlserver://localhost:1433;databaseName=DemoDB;encrypt=false"
+          FLYWAY_USER: "sa"
+          FLYWAY_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD_LOCAL }}
+        run: |
+          docker run --rm \
+            -v "$PWD":/flyway -w /flyway \
+            --network host \
+            flyway/flyway:10-alpine \
+            -url="$FLYWAY_URL" \
+            -user="$FLYWAY_USER" \
+            -password="$FLYWAY_PASSWORD" \
+            -locations="filesystem:./sql" \
+            migrate
+
+      - name: Show Flyway info
+        env:
+          FLYWAY_URL: "jdbc:sqlserver://localhost:1433;databaseName=DemoDB;encrypt=false"
+          FLYWAY_USER: "sa"
+          FLYWAY_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD_LOCAL }}
+        run: |
+          docker run --rm \
+            -v "$PWD":/flyway -w /flyway \
+            --network host \
+            flyway/flyway:10-alpine \
+            -url="$FLYWAY_URL" \
+            -user="$FLYWAY_USER" \
+            -password="$FLYWAY_PASSWORD" \
+            info
