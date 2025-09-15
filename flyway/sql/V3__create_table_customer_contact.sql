@@ -22,17 +22,4 @@ BEGIN
 
     CREATE INDEX IX_CustomerContact_customer
         ON app.CustomerContact (customer_code);
-
-    -- Trigger simple para updated_at
-    CREATE OR ALTER TRIGGER app.trg_CustomerContact_set_updated_at
-    ON app.CustomerContact
-    AFTER UPDATE
-    AS
-    BEGIN
-        SET NOCOUNT ON;
-        UPDATE c
-        SET updated_at = SYSUTCDATETIME()
-        FROM app.CustomerContact c
-            INNER JOIN inserted i ON c.contact_id = i.contact_id;
-    END;
 END;
