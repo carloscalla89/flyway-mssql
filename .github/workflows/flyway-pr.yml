@@ -51,23 +51,35 @@ jobs:
 
       - name: Flyway validate + dry-run + migrate (ephemeral)
         run: |
-          docker run --rm -v "$PWD":/flyway -w /flyway \
-            flyway/flyway:10-alpine \
-            -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
-            -user="sa" -password="${SA_PASSWORD_PR}" \
-            -locations="filesystem:./sql" validate
+          mkdir -p build
 
-          docker run --rm -v "$PWD":/flyway -w /flyway \
-            flyway/flyway:10-alpine \
-            -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
-            -user="sa" -password="${SA_PASSWORD_PR}" \
-            -locations="filesystem:./sql" -dryRunOutput="build/flyway_dryrun.sql" migrate
+          # VALIDATE
+          docker run --rm --network host -v "$PWD":/work -w /work \
+            redgate/flyway:latest \
+            flyway \
+              -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
+              -user="sa" -password="${SA_PASSWORD_PR}" \
+              -locations="filesystem:./sql" \
+              validate
 
-          docker run --rm -v "$PWD":/flyway -w /flyway \
-            flyway/flyway:10-alpine \
-            -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
-            -user="sa" -password="${SA_PASSWORD_PR}" \
-            -locations="filesystem:./sql" info
+          # DRY RUN + MIGRATE (genera SQL y luego aplica)
+          docker run --rm --network host -v "$PWD":/work -w /work \
+            redgate/flyway:latest \
+            flyway \
+              -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
+              -user="sa" -password="${SA_PASSWORD_PR}" \
+              -locations="filesystem:./sql" \
+              -dryRunOutput="build/flyway_dryrun.sql" \
+              migrate
+
+          # INFO
+          docker run --rm --network host -v "$PWD":/work -w /work \
+            redgate/flyway:latest \
+            flyway \
+              -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
+              -user="sa" -password="${SA_PASSWORD_PR}" \
+              -locations="filesystem:./sql" \
+              info
 
       - name: Subir dry-run como artefacto
         if: always()
