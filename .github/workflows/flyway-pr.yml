@@ -49,11 +49,28 @@ jobs:
             -S 127.0.0.1,14333 -U sa -P "${SA_PASSWORD_PR}" \
             -Q "IF DB_ID('FlywayPR') IS NULL CREATE DATABASE FlywayPR;"
 
-      - name: Flyway validate + dry-run + migrate (ephemeral)
+      - name: Flyway clean (ephemeral DB)
         run: |
-          mkdir -p build
+          docker run --rm --network host -v "$PWD":/work -w /work \
+            flyway/flyway:10-alpine \
+            -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
+            -user="sa" -password="${SA_PASSWORD_PR}" \
+            -locations="filesystem:./flyway/sql" \
+            -cleanDisabled=false clean
+      
+      - name: Flyway migrate (creates schema history)
+        run: |
+          docker run --rm --network host -v "$PWD":/work -w /work \
+            flyway/flyway:10-alpine \
+            -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
+            -user="sa" -password="${SA_PASSWORD_PR}" \
+            -locations="filesystem:./flyway/sql" \
+            -connectRetries=20 \
+            -baselineOnMigrate=true \
+            migrate
 
-          # VALIDATE
+      - name: Flyway validate (after migrate)
+        run: |
           docker run --rm --network host -v "$PWD":/work -w /work \
             flyway/flyway:10-alpine \
             -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
@@ -61,22 +78,14 @@ jobs:
             -locations="filesystem:./flyway/sql" \
             validate
 
-          # DRY-RUN + MIGRATE
+      - name: Flyway info
+        run: |
           docker run --rm --network host -v "$PWD":/work -w /work \
             flyway/flyway:10-alpine \
             -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
             -user="sa" -password="${SA_PASSWORD_PR}" \
             -locations="filesystem:./flyway/sql" \
-            -dryRunOutput="build/flyway_dryrun.sql" \
-            migrate
-
-          # INFO
-          docker run --rm --network host -v "$PWD":/work -w /work \
-            flyway/flyway:10-alpine \
-            -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
-            -user="sa" -password="${SA_PASSWORD_PR}" \
-            -locations="filesystem:./flyway/sql" \
-            info
+            info           
 
       - name: Subir dry-run como artefacto
         if: always()
