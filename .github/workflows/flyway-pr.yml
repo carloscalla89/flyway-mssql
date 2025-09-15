@@ -58,7 +58,7 @@ jobs:
             flyway/flyway:10-alpine \
             -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
             -user="sa" -password="${SA_PASSWORD_PR}" \
-            -locations="filesystem:./sql" \
+            -locations="filesystem:./flyway/sql" \
             validate
 
           # DRY-RUN + MIGRATE
@@ -66,7 +66,7 @@ jobs:
             flyway/flyway:10-alpine \
             -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
             -user="sa" -password="${SA_PASSWORD_PR}" \
-            -locations="filesystem:./sql" \
+            -locations="filesystem:./flyway/sql" \
             -dryRunOutput="build/flyway_dryrun.sql" \
             migrate
 
@@ -75,7 +75,7 @@ jobs:
             flyway/flyway:10-alpine \
             -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
             -user="sa" -password="${SA_PASSWORD_PR}" \
-            -locations="filesystem:./sql" \
+            -locations="filesystem:./flyway/sql" \
             info
 
       - name: Subir dry-run como artefacto
