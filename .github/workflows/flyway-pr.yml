@@ -55,31 +55,28 @@ jobs:
 
           # VALIDATE
           docker run --rm --network host -v "$PWD":/work -w /work \
-            redgate/flyway:latest \
-            flyway \
-              -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
-              -user="sa" -password="${SA_PASSWORD_PR}" \
-              -locations="filesystem:./sql" \
-              validate
+            flyway/flyway:10-alpine \
+            -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
+            -user="sa" -password="${SA_PASSWORD_PR}" \
+            -locations="filesystem:./sql" \
+            validate
 
-          # DRY RUN + MIGRATE (genera SQL y luego aplica)
+          # DRY-RUN + MIGRATE
           docker run --rm --network host -v "$PWD":/work -w /work \
-            redgate/flyway:latest \
-            flyway \
-              -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
-              -user="sa" -password="${SA_PASSWORD_PR}" \
-              -locations="filesystem:./sql" \
-              -dryRunOutput="build/flyway_dryrun.sql" \
-              migrate
+            flyway/flyway:10-alpine \
+            -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
+            -user="sa" -password="${SA_PASSWORD_PR}" \
+            -locations="filesystem:./sql" \
+            -dryRunOutput="build/flyway_dryrun.sql" \
+            migrate
 
           # INFO
           docker run --rm --network host -v "$PWD":/work -w /work \
-            redgate/flyway:latest \
-            flyway \
-              -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
-              -user="sa" -password="${SA_PASSWORD_PR}" \
-              -locations="filesystem:./sql" \
-              info
+            flyway/flyway:10-alpine \
+            -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
+            -user="sa" -password="${SA_PASSWORD_PR}" \
+            -locations="filesystem:./sql" \
+            info
 
       - name: Subir dry-run como artefacto
         if: always()
