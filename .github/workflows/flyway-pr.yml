@@ -11,6 +11,10 @@ concurrency:
   group: flyway-pr-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # CONTRASEÑA EFÍMERA SOLO PARA VALIDAR EN PR (BD desechable)
+  SA_PASSWORD_PR: 'P@ssw0rd1!'   # cumple complejidad
+
 jobs:
   validate:
     name: Validate Flyway on PR (SQL Server ephemeral)
@@ -21,64 +25,77 @@ jobs:
         image: mcr.microsoft.com/mssql/server:2022-latest
         env:
           ACCEPT_EULA: "Y"
-          SA_PASSWORD: ${{ secrets.MSSQL_SA_PASSWORD }}
+          SA_PASSWORD: ${{ env.SA_PASSWORD_PR }}
           MSSQL_PID: "Express"
         ports:
           - 14333:1433
-        options: >-
-          --health-cmd=" /opt/mssql-tools18/bin/sqlcmd -C -S localhost,1433 -U sa -P $${SA_PASSWORD} -Q 'select 1' || exit 1 "
-          --health-interval=10s
-          --health-timeout=5s
-          --health-retries=30
+        # Nota: quito healthcheck interno para evitar diferencias de path de sqlcmd dentro del contenedor
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Wait for SQL to be healthy
+      - name: Esperar a SQL con mssql-tools externo
         run: |
           for i in {1..60}; do
-            docker run --rm --network host mcr.microsoft.com/mssql-tools /opt/mssql-tools/bin/sqlcmd -S 127.0.0.1,14333 -U sa -P "${{ secrets.MSSQL_SA_PASSWORD }}" -Q "SELECT 1" && break
-            echo "Waiting MSSQL... ($i/60)"; sleep 2
+            docker run --rm --network host mcr.microsoft.com/mssql-tools /opt/mssql-tools/bin/sqlcmd \
+              -S 127.0.0.1,14333 -U sa -P "${SA_PASSWORD_PR}" -Q "SELECT 1" && break
+            echo "Esperando MSSQL... ($i/60)"; sleep 2
           done
 
-      - name: Create empty DB for CI
+      - name: Crear DB temporal para CI
         run: |
           docker run --rm --network host mcr.microsoft.com/mssql-tools /opt/mssql-tools/bin/sqlcmd \
-            -S 127.0.0.1,14333 -U sa -P "${{ secrets.MSSQL_SA_PASSWORD }}" \
+            -S 127.0.0.1,14333 -U sa -P "${SA_PASSWORD_PR}" \
             -Q "IF DB_ID('FlywayPR') IS NULL CREATE DATABASE FlywayPR;"
 
-      - name: Run Flyway validate + dry-run + migrate (ephemeral)
+      - name: Flyway clean (ephemeral DB)
         run: |
-          docker run --rm -v "$PWD":/flyway -w /flyway \
+          docker run --rm --network host -v "$PWD":/work -w /work \
             flyway/flyway:10-alpine \
-            -url="jdbc:sqlserver://host.docker.internal:14333;databaseName=FlywayPR;encrypt=false" \
-            -user="sa" \
-            -password="${{ secrets.MSSQL_SA_PASSWORD }}" \
-            -locations="filesystem:./sql" \
-            validate
-
-          # Opcional: genera SQL de dry-run (no ejecuta contra la BD)
-          docker run --rm -v "$PWD":/flyway -w /flyway \
+            -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
+            -user="sa" -password="${SA_PASSWORD_PR}" \
+            -locations="filesystem:./flyway/sql" \
+            -cleanDisabled=false clean
+      
+      - name: Flyway migrate (creates schema history)
+        run: |
+          docker run --rm --network host -v "$PWD":/work -w /work \
             flyway/flyway:10-alpine \
-            -url="jdbc:sqlserver://host.docker.internal:14333;databaseName=FlywayPR;encrypt=false" \
-            -user="sa" \
-            -password="${{ secrets.MSSQL_SA_PASSWORD }}" \
-            -locations="filesystem:./sql" \
-            -dryRunOutput="build/flyway_dryrun.sql" migrate
-
-          # Ejecuta migración real en la BD efímera para “probarla”
-          docker run --rm -v "$PWD":/flyway -w /flyway \
-            flyway/flyway:10-alpine \
-            -url="jdbc:sqlserver://host.docker.internal:14333;databaseName=FlywayPR;encrypt=false" \
-            -user="sa" \
-            -password="${{ secrets.MSSQL_SA_PASSWORD }}" \
-            -locations="filesystem:./sql" \
+            -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
+            -user="sa" -password="${SA_PASSWORD_PR}" \
+            -locations="filesystem:./flyway/sql" \
+            -connectRetries=20 \
+            -baselineOnMigrate=true \
             migrate
 
-      - name: Upload dry-run SQL (artifact)
+      - name: Flyway validate (after migrate)
+        run: |
+          docker run --rm --network host -v "$PWD":/work -w /work \
+            flyway/flyway:10-alpine \
+            -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
+            -user="sa" -password="${SA_PASSWORD_PR}" \
+            -locations="filesystem:./flyway/sql" \
+            validate
+
+      - name: Flyway info
+        run: |
+          docker run --rm --network host -v "$PWD":/work -w /work \
+            flyway/flyway:10-alpine \
+            -url="jdbc:sqlserver://127.0.0.1:14333;databaseName=FlywayPR;encrypt=false" \
+            -user="sa" -password="${SA_PASSWORD_PR}" \
+            -locations="filesystem:./flyway/sql" \
+            info           
+
+      - name: Subir dry-run como artefacto
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: flyway-dryrun
           path: build/flyway_dryrun.sql
+
+      - name: (Debug) Mostrar contenedores y logs si falla
+        if: failure()
+        run: |
+          docker ps -a
+          docker logs $(docker ps -aq --filter "ancestor=mcr.microsoft.com/mssql/server:2022-latest" | head -n1) || true
